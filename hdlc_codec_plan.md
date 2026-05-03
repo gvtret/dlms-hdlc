@@ -1291,6 +1291,20 @@ codec совместим с DLMS/COSEM HDLC profile
 
 ---
 
+### Фаза 12. Doxygen public API documentation
+
+Критерий готовности:
+
+```text
+каждая функция публичного API документирована
+каждый публичный метод документирован
+каждое публичное поле структуры документировано
+C ABI header самодокументируемый и компилируется C-компилятором
+комментарии описывают ownership, limits, buffer policy и error statuses
+```
+
+---
+
 ## 27. Основные риски
 
 ### 27.1. Неправильная адресация
@@ -1372,6 +1386,7 @@ future negotiation support boundary
 stable C ABI
 GoogleTest
 real DLMS test vectors
+Doxygen-documented public API
 ```
 
 Не входит:

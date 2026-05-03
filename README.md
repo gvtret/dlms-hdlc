@@ -20,6 +20,7 @@ Included:
 - status-code based error handling
 - no exceptions in public/runtime API paths
 - stable C ABI wrapper
+- Doxygen-documented public API
 - CMake 3.16+ build system
 - GoogleTest-based test suite
 
@@ -520,6 +521,10 @@ Stable C ABI.
 ### Phase 11
 
 Real DLMS/COSEM vectors.
+
+### Phase 12
+
+Doxygen public API documentation.
 
 ## License
 

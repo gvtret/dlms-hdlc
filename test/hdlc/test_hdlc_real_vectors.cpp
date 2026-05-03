@@ -29,6 +29,9 @@ struct HdlcRealVector
   std::size_t informationSize;
 };
 
+// The first vector group is taken from spodes_trace.log, which contains a real
+// DLMS/COSEM HDLC exchange. Historical vectors below keep earlier known-frame
+// coverage stable while the trace-backed vectors anchor compatibility.
 const std::uint8_t kSnrmRequest[] = {
   0x7e, 0xa0, 0x08, 0x02, 0x21, 0x61, 0x93, 0x63, 0x97, 0x7e
 };
