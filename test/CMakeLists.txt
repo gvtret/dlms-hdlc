@@ -14,6 +14,7 @@ add_executable(dlms_hdlc_tests
   hdlc/test_hdlc_control.cpp
   hdlc/test_hdlc_crc.cpp
   hdlc/test_hdlc_error.cpp
+  hdlc/test_hdlc_frame_encoder.cpp
   hdlc/test_hdlc_skeleton.cpp)
 
 target_link_libraries(dlms_hdlc_tests
