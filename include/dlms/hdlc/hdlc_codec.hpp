@@ -23,5 +23,20 @@ HdlcStatus EncodeFrame(
   const HdlcCodecLimits& limits,
   std::vector<std::uint8_t>& output);
 
+HdlcStatus DecodeFrameFromBuffer(
+  const std::uint8_t* input,
+  std::size_t inputSize,
+  const HdlcCodecLimits& limits,
+  HdlcFrame& frame,
+  std::uint8_t* informationBuffer,
+  std::size_t informationBufferSize,
+  std::size_t& informationSize);
+
+HdlcStatus DecodeFrame(
+  const std::uint8_t* input,
+  std::size_t inputSize,
+  const HdlcCodecLimits& limits,
+  HdlcFrameBuffer& frame);
+
 } // namespace hdlc
 } // namespace dlms

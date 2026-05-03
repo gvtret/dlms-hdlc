@@ -51,6 +51,18 @@ void WriteUint16HighByteFirst(std::uint16_t value, std::uint8_t* output)
   output[1] = static_cast<std::uint8_t>(value & 0xffu);
 }
 
+std::uint16_t ReadUint16LowByteFirst(const std::uint8_t* input)
+{
+  return static_cast<std::uint16_t>(input[0] |
+                                    (std::uint16_t(input[1]) << 8));
+}
+
+std::uint16_t ReadUint16HighByteFirst(const std::uint8_t* input)
+{
+  return static_cast<std::uint16_t>((std::uint16_t(input[0]) << 8) |
+                                    input[1]);
+}
+
 } // namespace
 
 HdlcCodecLimits DefaultHdlcCodecLimits()
@@ -185,6 +197,197 @@ HdlcStatus EncodeFrame(
     output.resize(writtenSize);
   } catch (const std::bad_alloc&) {
     output.clear();
+    return HdlcStatus::InternalError;
+  }
+
+  return HdlcStatus::Ok;
+}
+
+HdlcStatus DecodeFrameFromBuffer(
+  const std::uint8_t* input,
+  std::size_t inputSize,
+  const HdlcCodecLimits& limits,
+  HdlcFrame& frame,
+  std::uint8_t* informationBuffer,
+  std::size_t informationBufferSize,
+  std::size_t& informationSize)
+{
+  informationSize = 0u;
+  frame.informationData = informationBuffer;
+  frame.informationSize = 0u;
+
+  if (input == 0) {
+    return HdlcStatus::InvalidArgument;
+  }
+
+  if (informationBuffer == 0 && informationBufferSize != 0u) {
+    return HdlcStatus::InvalidArgument;
+  }
+
+  if (inputSize < 4u) {
+    return HdlcStatus::NeedMoreData;
+  }
+
+  if (input[0] != kHdlcFlag) {
+    return HdlcStatus::InvalidFlag;
+  }
+
+  const std::uint16_t frameFormat = ReadUint16HighByteFirst(input + 1u);
+  if ((frameFormat & 0xf000u) != kFrameFormatType3) {
+    return HdlcStatus::InvalidFrameFormat;
+  }
+
+  const bool segmented = (frameFormat & kSegmentationBit) != 0u;
+  const std::size_t formatFieldLength =
+    static_cast<std::size_t>(frameFormat & 0x07ffu);
+  const std::size_t fullFrameSize = formatFieldLength + 2u;
+
+  if (formatFieldLength < 6u) {
+    return HdlcStatus::InvalidFrameLength;
+  }
+
+  if (formatFieldLength > kMaximumFormatFieldLength) {
+    return HdlcStatus::InvalidFrameLength;
+  }
+
+  if (fullFrameSize > EffectiveMaximumFrameSize(limits)) {
+    return HdlcStatus::FrameTooLarge;
+  }
+
+  if (inputSize < fullFrameSize) {
+    return HdlcStatus::NeedMoreData;
+  }
+
+  if (inputSize != fullFrameSize) {
+    return HdlcStatus::InvalidFrameLength;
+  }
+
+  if (input[fullFrameSize - 1u] != kHdlcFlag) {
+    return HdlcStatus::InvalidFlag;
+  }
+
+  std::size_t offset = 3u;
+  std::size_t consumed = 0u;
+  HdlcAddress destination;
+  HdlcStatus status =
+    HdlcAddress::FromBytes(input + offset,
+                           fullFrameSize - 1u - offset,
+                           destination,
+                           consumed);
+  if (status != HdlcStatus::Ok) {
+    return status;
+  }
+  offset += consumed;
+
+  HdlcAddress source;
+  status = HdlcAddress::FromBytes(input + offset,
+                                  fullFrameSize - 1u - offset,
+                                  source,
+                                  consumed);
+  if (status != HdlcStatus::Ok) {
+    return status;
+  }
+  offset += consumed;
+
+  if (offset >= fullFrameSize - 3u) {
+    return HdlcStatus::InvalidFrameLength;
+  }
+
+  HdlcControl control;
+  status = HdlcControl::Decode(input[offset++], control);
+  if (status != HdlcStatus::Ok) {
+    return status;
+  }
+
+  const std::size_t headerSize = offset - 1u;
+  const std::size_t bytesBeforeFcs = fullFrameSize - 3u - offset;
+  if (bytesBeforeFcs == 1u) {
+    return HdlcStatus::InvalidFrameLength;
+  }
+
+  const bool hasInformation = bytesBeforeFcs != 0u;
+  if (hasInformation) {
+    const std::uint16_t expectedHcs = ReadUint16LowByteFirst(input + offset);
+    if (CalculateHdlcCrc(input + 1u, headerSize) != expectedHcs) {
+      return HdlcStatus::InvalidHeaderChecksum;
+    }
+    offset += 2u;
+  }
+
+  const std::uint8_t* const fcsField = input + fullFrameSize - 3u;
+  const std::uint16_t expectedFcs = ReadUint16LowByteFirst(fcsField);
+  if (CalculateHdlcCrc(input + 1u, formatFieldLength - 2u) != expectedFcs) {
+    return HdlcStatus::InvalidFrameChecksum;
+  }
+
+  const std::size_t decodedInformationSize =
+    hasInformation ? (fullFrameSize - 3u - offset) : 0u;
+  if (decodedInformationSize > informationBufferSize) {
+    return HdlcStatus::OutputBufferTooSmall;
+  }
+
+  HdlcFrame decoded;
+  decoded.segmented = segmented;
+  decoded.destination = destination;
+  decoded.source = source;
+  decoded.control = control;
+  decoded.informationData = informationBuffer;
+  decoded.informationSize = decodedInformationSize;
+
+  if (decodedInformationSize >
+      EffectiveMaximumInformationFieldSize(decoded, limits)) {
+    return HdlcStatus::InformationFieldTooLarge;
+  }
+
+  if (decodedInformationSize != 0u) {
+    std::copy(input + offset,
+              input + offset + decodedInformationSize,
+              informationBuffer);
+  }
+
+  frame = decoded;
+  informationSize = decodedInformationSize;
+  return HdlcStatus::Ok;
+}
+
+HdlcStatus DecodeFrame(
+  const std::uint8_t* input,
+  std::size_t inputSize,
+  const HdlcCodecLimits& limits,
+  HdlcFrameBuffer& frame)
+{
+  const std::size_t maximumFrameSize = EffectiveMaximumFrameSize(limits);
+
+  try {
+    frame.information.assign(maximumFrameSize, 0u);
+  } catch (const std::bad_alloc&) {
+    return HdlcStatus::InternalError;
+  }
+
+  HdlcFrame decoded;
+  std::size_t informationSize = 0u;
+  const HdlcStatus status =
+    DecodeFrameFromBuffer(input,
+                          inputSize,
+                          limits,
+                          decoded,
+                          frame.information.empty() ? 0 : &frame.information[0],
+                          frame.information.size(),
+                          informationSize);
+  if (status != HdlcStatus::Ok) {
+    frame.information.clear();
+    return status;
+  }
+
+  frame.segmented = decoded.segmented;
+  frame.destination = decoded.destination;
+  frame.source = decoded.source;
+  frame.control = decoded.control;
+
+  try {
+    frame.information.resize(informationSize);
+  } catch (const std::bad_alloc&) {
+    frame.information.clear();
     return HdlcStatus::InternalError;
   }
 
