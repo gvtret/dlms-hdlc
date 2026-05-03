@@ -10,7 +10,9 @@ else()
 endif()
 
 add_executable(dlms_hdlc_tests
+  hdlc/test_hdlc_c_header.c
   hdlc/test_hdlc_address.cpp
+  hdlc/test_hdlc_c_api.cpp
   hdlc/test_hdlc_control.cpp
   hdlc/test_hdlc_crc.cpp
   hdlc/test_hdlc_error.cpp
