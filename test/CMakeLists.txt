@@ -1,0 +1,21 @@
+if(DLMS_USE_SYSTEM_GTEST)
+  find_package(GTest REQUIRED)
+else()
+  include(FetchContent)
+  FetchContent_Declare(
+    googletest
+    URL https://github.com/google/googletest/archive/refs/tags/v1.14.0.zip
+    DOWNLOAD_EXTRACT_TIMESTAMP TRUE)
+  FetchContent_MakeAvailable(googletest)
+endif()
+
+add_executable(dlms_hdlc_tests
+  hdlc/test_hdlc_skeleton.cpp)
+
+target_link_libraries(dlms_hdlc_tests
+  PRIVATE
+    dlms_hdlc
+    GTest::gtest_main)
+
+include(GoogleTest)
+gtest_discover_tests(dlms_hdlc_tests)
