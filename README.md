@@ -2,11 +2,11 @@
 
 Portable C++11 HDLC Frame Format Type 3 codec for DLMS/COSEM.
 
-This repository contains the HDLC codec layer for a future DLMS/COSEM framework. The framework is planned to include HDLC, LLC, WRAPPER and APDU codecs, but this repository phase focuses on the HDLC codec foundation.
+This repository contains the HDLC codec and initial HDLC session layer for a future DLMS/COSEM framework. The framework is planned to include HDLC, LLC, WRAPPER and APDU codecs, but this repository phase focuses on the HDLC foundation.
 
 ## Scope
 
-Version 1 implements the **codec layer only**.
+Version 1 implements the **HDLC codec layer** and an initial transport-independent **HDLC session layer**.
 
 Included:
 
@@ -17,6 +17,10 @@ Included:
 - HCS/FCS calculation and validation
 - stream decoding by Format Field length
 - full HDLC segmentation and reassembly
+- initial HDLC session state machine
+- SNRM/UA connect sequence
+- DISC/UA disconnect sequence
+- I-frame and RR sequence tracking
 - status-code based error handling
 - no exceptions in public/runtime API paths
 - stable C ABI wrapper
@@ -26,10 +30,10 @@ Included:
 
 Not included in v1:
 
-- HDLC session state machine
-- SNRM/UA negotiation logic
+- full SNRM/UA parameter negotiation logic
 - timeout handling
 - retransmission
+- duplicate frame recovery policy
 - transport layer
 - LLC codec
 - WRAPPER codec
@@ -84,6 +88,7 @@ The HDLC codec does **not** parse LLC or APDU payloads. The HDLC `Information` f
 | Frame boundary | determined by Format Field length |
 | Closing flag | required |
 | Payload byte `0x7E` | allowed inside Information field |
+| Session layer | transport-independent state machine |
 | C ABI | separate stable wrapper |
 | Tests | GoogleTest |
 
@@ -177,7 +182,7 @@ Default:
 maximum_reassembled_information_size = 65535
 ```
 
-The future HDLC session layer may update codec limits after SNRM/UA negotiation.
+The HDLC session layer may update codec limits after SNRM/UA negotiation once parameter parsing is implemented.
 
 ## Repository Layout
 
@@ -198,6 +203,7 @@ Planned layout:
 │           ├── hdlc_codec.hpp
 │           ├── hdlc_stream_decoder.hpp
 │           ├── hdlc_segmentation.hpp
+│           ├── hdlc_session.hpp
 │           └── hdlc_c_api.h
 ├── src/
 │   └── hdlc/
@@ -207,6 +213,7 @@ Planned layout:
 │       ├── hdlc_codec.cpp
 │       ├── hdlc_stream_decoder.cpp
 │       ├── hdlc_segmentation.cpp
+│       ├── hdlc_session.cpp
 │       └── hdlc_c_api.cpp
 ├── test/
 │   ├── CMakeLists.txt
@@ -217,6 +224,7 @@ Planned layout:
 │       ├── test_hdlc_codec.cpp
 │       ├── test_hdlc_stream_decoder.cpp
 │       ├── test_hdlc_segmentation.cpp
+│       ├── test_hdlc_session.cpp
 │       ├── test_hdlc_c_api.cpp
 │       └── test_hdlc_vectors.cpp
 └── docs/
@@ -401,30 +409,33 @@ The reassembler must check:
 - maximum reassembled information size
 - invalid start of a new sequence before completing the previous one
 
-Full sequence-number validation belongs to the future session layer.
+Full sequence-number validation belongs to the session layer.
 
-## Future HDLC Session Layer
+## HDLC Session Layer
 
-The session layer is not part of v1.
+The session layer is transport-independent and built on top of the frame codec.
 
-Future responsibilities:
+Implemented responsibilities:
 
 - client/server role behavior
 - SNRM generation
-- UA parsing
-- negotiated limits
-- window size
+- UA connect handling
 - I-frame send sequence `N(S)`
 - I-frame receive sequence `N(R)`
 - Poll/Final handling
-- RR/RNR handling
+- RR generation and receive-sequence validation
 - DISC/UA close sequence
+
+Still outside this layer:
+
+- full SNRM/UA parameter negotiation
+- negotiated window size
 - timeouts
 - retransmission
 - duplicate frame detection
 - segmentation policy
 
-The codec must not own session state.
+The session layer does not own transport I/O, timers, LLC, or APDU parsing.
 
 ## Test Plan
 

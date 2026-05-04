@@ -14,7 +14,8 @@ add_library(dlms_hdlc
   src/hdlc/hdlc_crc.cpp
   src/hdlc/hdlc_codec.cpp
   src/hdlc/hdlc_stream_decoder.cpp
-  src/hdlc/hdlc_segmentation.cpp)
+  src/hdlc/hdlc_segmentation.cpp
+  src/hdlc/hdlc_session.cpp)
 
 target_compile_features(dlms_hdlc PUBLIC cxx_std_11)
 

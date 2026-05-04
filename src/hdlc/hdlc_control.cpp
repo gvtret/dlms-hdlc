@@ -73,6 +73,60 @@ bool HdlcControl::PollFinal() const
   return (rawValue_ & 0x10u) != 0u;
 }
 
+HdlcStatus HdlcControl::SupervisoryKind(HdlcSupervisoryKind& kind) const
+{
+  if (FrameKind() != HdlcFrameKind::Supervisory) {
+    return HdlcStatus::InvalidFrameType;
+  }
+
+  switch ((rawValue_ >> 2) & 0x03u) {
+    case 0u:
+      kind = HdlcSupervisoryKind::ReceiveReady;
+      return HdlcStatus::Ok;
+    case 1u:
+      kind = HdlcSupervisoryKind::ReceiveNotReady;
+      return HdlcStatus::Ok;
+    case 2u:
+      kind = HdlcSupervisoryKind::Reject;
+      return HdlcStatus::Ok;
+    case 3u:
+      kind = HdlcSupervisoryKind::SelectiveReject;
+      return HdlcStatus::Ok;
+    default:
+      return HdlcStatus::InvalidControlField;
+  }
+}
+
+HdlcStatus HdlcControl::UnnumberedKind(HdlcUnnumberedKind& kind) const
+{
+  if (FrameKind() != HdlcFrameKind::Unnumbered) {
+    return HdlcStatus::InvalidFrameType;
+  }
+
+  switch (rawValue_ & 0xefu) {
+    case 0x83u:
+      kind = HdlcUnnumberedKind::Snrm;
+      return HdlcStatus::Ok;
+    case 0x63u:
+      kind = HdlcUnnumberedKind::Ua;
+      return HdlcStatus::Ok;
+    case 0x43u:
+      kind = HdlcUnnumberedKind::Disc;
+      return HdlcStatus::Ok;
+    case 0x0fu:
+      kind = HdlcUnnumberedKind::Dm;
+      return HdlcStatus::Ok;
+    case 0x87u:
+      kind = HdlcUnnumberedKind::Frmr;
+      return HdlcStatus::Ok;
+    case 0x03u:
+      kind = HdlcUnnumberedKind::Ui;
+      return HdlcStatus::Ok;
+    default:
+      return HdlcStatus::InvalidControlField;
+  }
+}
+
 std::uint8_t HdlcControl::SendSequence() const
 {
   if (FrameKind() != HdlcFrameKind::Information) {

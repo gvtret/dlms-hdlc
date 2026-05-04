@@ -8,7 +8,9 @@ namespace {
 
 using dlms::hdlc::HdlcControl;
 using dlms::hdlc::HdlcFrameKind;
+using dlms::hdlc::HdlcSupervisoryKind;
 using dlms::hdlc::HdlcStatus;
+using dlms::hdlc::HdlcUnnumberedKind;
 
 void ExpectRoundtrip(std::uint8_t value)
 {
@@ -45,9 +47,12 @@ TEST(HdlcControl, DecodeIFrameWithoutPollFinal)
 TEST(HdlcControl, DecodeReceiveReady)
 {
   HdlcControl control;
+  HdlcSupervisoryKind kind = HdlcSupervisoryKind::Reject;
 
   ASSERT_EQ(HdlcStatus::Ok, HdlcControl::Decode(0x11u, control));
   EXPECT_EQ(HdlcFrameKind::Supervisory, control.FrameKind());
+  EXPECT_EQ(HdlcStatus::Ok, control.SupervisoryKind(kind));
+  EXPECT_EQ(HdlcSupervisoryKind::ReceiveReady, kind);
   EXPECT_TRUE(control.PollFinal());
   EXPECT_EQ(0u, control.SendSequence());
   EXPECT_EQ(0u, control.ReceiveSequence());
@@ -84,9 +89,12 @@ TEST(HdlcControl, DecodeSelectiveReject)
 TEST(HdlcControl, DecodeSnrm)
 {
   HdlcControl control;
+  HdlcUnnumberedKind kind = HdlcUnnumberedKind::Ua;
 
   ASSERT_EQ(HdlcStatus::Ok, HdlcControl::Decode(0x93u, control));
   EXPECT_EQ(HdlcFrameKind::Unnumbered, control.FrameKind());
+  EXPECT_EQ(HdlcStatus::Ok, control.UnnumberedKind(kind));
+  EXPECT_EQ(HdlcUnnumberedKind::Snrm, kind);
   EXPECT_TRUE(control.PollFinal());
 }
 

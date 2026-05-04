@@ -103,6 +103,23 @@ public:
   bool PollFinal() const;
 
   /**
+   * @brief Return the supervisory command kind.
+   *
+   * @param kind Receives the decoded kind for supervisory frames.
+   * @return `Ok` for supervisory frames, otherwise `InvalidFrameType`.
+   */
+  HdlcStatus SupervisoryKind(HdlcSupervisoryKind& kind) const;
+
+  /**
+   * @brief Return the unnumbered command/response kind.
+   *
+   * @param kind Receives the decoded kind for unnumbered frames.
+   * @return `Ok` for supported unnumbered frames, otherwise
+   * `InvalidFrameType`.
+   */
+  HdlcStatus UnnumberedKind(HdlcUnnumberedKind& kind) const;
+
+  /**
    * @brief Return the send sequence number `N(S)` for I-frames.
    * @return Three-bit send sequence value; zero for frame types without `N(S)`.
    */

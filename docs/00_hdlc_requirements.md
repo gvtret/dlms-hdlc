@@ -2,7 +2,7 @@
 
 ## 1. Scope
 
-This document defines requirements for a portable C++11 HDLC codec library for DLMS/COSEM.
+This document defines requirements for a portable C++11 HDLC library for DLMS/COSEM.
 
 The library implements HDLC Frame Format Type 3 encoding and decoding. It is part of a future DLMS/COSEM framework that will also include:
 
@@ -11,7 +11,8 @@ The library implements HDLC Frame Format Type 3 encoding and decoding. It is par
 - APDU codec
 - HDLC session layer
 
-Version 1 implements the codec layer only. It does not implement the HDLC session state machine.
+Version 1 implements the codec layer and an initial transport-independent HDLC
+session state machine.
 
 ## 2. Fixed Design Decisions
 
@@ -28,6 +29,7 @@ Version 1 implements the codec layer only. It does not implement the HDLC sessio
 | Frame boundary | Determined by Format Field length |
 | Closing flag | Required |
 | Payload byte `0x7E` | Allowed inside information field |
+| Session layer | Transport-independent state machine |
 | C ABI | Stable separate C ABI layer |
 | Tests | GoogleTest |
 
@@ -145,9 +147,11 @@ The reassembler must reject any segmented sequence that exceeds this value.
 
 ## 9. Runtime Negotiation
 
-Limits may be changed after SNRM/UA negotiation by the future HDLC session layer.
+Limits may be changed after SNRM/UA negotiation by the HDLC session layer once
+parameter parsing is implemented.
 
-The codec itself does not perform SNRM/UA negotiation, but it must expose configuration points so the future session layer can update:
+The codec itself does not perform SNRM/UA negotiation, but it exposes
+configuration points so the session layer can update:
 
 ```text
 maximum_frame_size
@@ -177,9 +181,7 @@ The codec must validate:
 
 The following are not implemented in v1:
 
-- HDLC session state machine
-- SNRM/UA negotiation logic
-- sequence-number ownership
+- full SNRM/UA parameter negotiation logic
 - timeout handling
 - retransmission
 - transport layer

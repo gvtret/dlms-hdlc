@@ -1,25 +1,33 @@
-# 04. Future HDLC Session Layer Requirements
+# 04. HDLC Session Layer Requirements
 
 ## 1. Scope
 
-The HDLC session layer is not implemented in v1.
+The HDLC session layer is implemented as a transport-independent state machine
+on top of the codec.
 
-This document defines requirements that the v1 codec must support so that the session layer can be added without breaking the codec API.
+The session layer consumes decoded HDLC frames and builds encoded HDLC frames.
+It does not own serial/TCP I/O, timers, retransmission scheduling, LLC, or APDU
+parsing.
 
 ## 2. Session Responsibilities
 
-The future session layer will be responsible for:
+The initial session layer is responsible for:
 
 - client/server role behavior;
 - SNRM generation;
-- UA parsing;
-- negotiated maximum information field size;
-- negotiated window size;
+- UA connect handling;
 - I-frame send sequence N(S);
 - I-frame receive sequence N(R);
 - Poll/Final handling;
-- RR/RNR generation and interpretation;
+- RR generation and receive-sequence validation;
 - DISC/UA close sequence;
+- endpoint address validation.
+
+The following responsibilities remain future work:
+
+- SNRM/UA parameter parsing;
+- negotiated maximum information field size;
+- negotiated window size;
 - timeouts;
 - retransmission;
 - duplicate frame detection;
@@ -77,7 +85,8 @@ The codec must support the minimum client/server frame set:
 
 ## 6. Transport Independence
 
-The session layer will use transport adapters. The codec must remain transport-independent.
+The session layer will use transport adapters. The codec and session must remain
+transport-independent.
 
 Examples of future transports:
 

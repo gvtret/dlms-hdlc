@@ -9,8 +9,8 @@ namespace hdlc {
  * @brief Runtime limits used by frame codec, stream decoder, and reassembler.
  *
  * A zero field means "use the codec default" for APIs that accept limits.
- * The future HDLC session layer may update these values after SNRM/UA
- * negotiation, but the codec itself does not perform negotiation.
+ * The HDLC session layer may update these values after SNRM/UA negotiation,
+ * but the codec itself does not perform negotiation.
  */
 struct HdlcCodecLimits
 {

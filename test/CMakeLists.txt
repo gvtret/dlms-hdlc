@@ -20,6 +20,7 @@ add_executable(dlms_hdlc_tests
   hdlc/test_hdlc_frame_encoder.cpp
   hdlc/test_hdlc_real_vectors.cpp
   hdlc/test_hdlc_segmentation.cpp
+  hdlc/test_hdlc_session.cpp
   hdlc/test_hdlc_stream_decoder.cpp
   hdlc/test_hdlc_skeleton.cpp)
 
