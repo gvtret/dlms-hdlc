@@ -1,12 +1,17 @@
 # DLMS/COSEM HDLC Codec
 
-Portable C++11 HDLC Frame Format Type 3 codec for DLMS/COSEM.
+Portable HDLC Frame Format Type 3 codec for DLMS/COSEM, implemented in C++11
+and Go.
 
-This repository contains the HDLC codec and initial HDLC session layer for a future DLMS/COSEM framework. The framework is planned to include HDLC, LLC, WRAPPER and APDU codecs, but this repository phase focuses on the HDLC foundation.
+This repository contains the HDLC codec and initial HDLC session layer for a
+future DLMS/COSEM framework. The framework is planned to include HDLC, LLC,
+WRAPPER and APDU codecs, but this repository phase focuses on the HDLC
+foundation.
 
 ## Scope
 
-Version 1 implements the **HDLC codec layer** and an initial transport-independent **HDLC session layer**.
+Version 1 implements the **HDLC codec layer** and an initial
+transport-independent **HDLC session layer** in both C++11 and Go.
 
 Included:
 
@@ -22,11 +27,12 @@ Included:
 - DISC/UA disconnect sequence
 - I-frame and RR sequence tracking
 - status-code based error handling
-- no exceptions in public/runtime API paths
-- stable C ABI wrapper
-- Doxygen-documented public API
-- CMake 3.16+ build system
-- GoogleTest-based test suite
+- no exceptions (C++) / no panics (Go) in public runtime API paths
+- stable C ABI wrapper (C++ implementation, exposed from Go via CGo)
+- Doxygen-documented C++ public API; godoc-documented Go public API
+- CMake 3.16+ build system (C++, Go, and CTest integration)
+- GoogleTest-based C++ test suite
+- Go standard-library test suite (`go test`)
 
 Not included in v1:
 
@@ -75,22 +81,22 @@ The HDLC codec does **not** parse LLC or APDU payloads. The HDLC `Information` f
 
 ## Key Design Decisions
 
-| Area | Decision |
-|---|---|
-| Language | C++11 |
-| Build system | CMake 3.16+ |
-| Error handling | status codes |
-| Exceptions | not used in public/runtime API paths |
-| Target roles | client and server |
-| HDLC frame format | Type 3 |
-| Segmentation | fully supported |
-| Byte stuffing | not used |
-| Frame boundary | determined by Format Field length |
-| Closing flag | required |
-| Payload byte `0x7E` | allowed inside Information field |
-| Session layer | transport-independent state machine |
-| C ABI | separate stable wrapper |
-| Tests | GoogleTest |
+| Area | C++ | Go |
+|---|---|---|
+| Language | C++11 | Go 1.21+ |
+| Build system | CMake 3.16+ | CMake + `go build` via custom target |
+| Error handling | status codes | `error` interface returning `Status` |
+| Panics / exceptions | not used in public/runtime API paths | not used in public/runtime API paths |
+| Target roles | client and server | client and server |
+| HDLC frame format | Type 3 | Type 3 |
+| Segmentation | fully supported | fully supported |
+| Byte stuffing | not used | not used |
+| Frame boundary | determined by Format Field length | determined by Format Field length |
+| Closing flag | required | required |
+| Payload byte `0x7E` | allowed inside Information field | allowed inside Information field |
+| Session layer | transport-independent state machine | transport-independent state machine |
+| C ABI | separate stable wrapper | CGo shared-library wrapper (`-buildmode=c-shared`) |
+| Tests | GoogleTest | `go test` |
 
 ## Frame Format
 
@@ -186,8 +192,6 @@ The HDLC session layer may update codec limits after SNRM/UA negotiation once pa
 
 ## Repository Layout
 
-Planned layout:
-
 ```text
 .
 ├── CMakeLists.txt
@@ -221,12 +225,40 @@ Planned layout:
 │       ├── test_hdlc_address.cpp
 │       ├── test_hdlc_control.cpp
 │       ├── test_hdlc_crc.cpp
-│       ├── test_hdlc_codec.cpp
+│       ├── test_hdlc_frame_encoder.cpp
+│       ├── test_hdlc_frame_decoder.cpp
 │       ├── test_hdlc_stream_decoder.cpp
 │       ├── test_hdlc_segmentation.cpp
 │       ├── test_hdlc_session.cpp
 │       ├── test_hdlc_c_api.cpp
-│       └── test_hdlc_vectors.cpp
+│       └── test_hdlc_real_vectors.cpp
+├── golang/
+│   ├── CMakeLists.txt
+│   ├── go.mod
+│   ├── hdlc/                   ← pure-Go codec package
+│   │   ├── status.go
+│   │   ├── types.go
+│   │   ├── address.go
+│   │   ├── control.go
+│   │   ├── crc.go
+│   │   ├── frame.go
+│   │   ├── codec.go
+│   │   ├── stream_decoder.go
+│   │   ├── segmentation.go
+│   │   ├── session.go
+│   │   ├── address_test.go
+│   │   ├── control_test.go
+│   │   ├── crc_test.go
+│   │   ├── status_test.go
+│   │   ├── frame_encoder_test.go
+│   │   ├── frame_decoder_test.go
+│   │   ├── stream_decoder_test.go
+│   │   ├── segmentation_test.go
+│   │   ├── session_test.go
+│   │   └── real_vectors_test.go
+│   └── cabi/                   ← CGo C ABI wrapper
+│       ├── main.go
+│       └── hdlc_c_api.h
 └── docs/
     ├── 00_hdlc_requirements.md
     ├── 01_hdlc_codec_api.md
@@ -237,6 +269,8 @@ Planned layout:
 ```
 
 ## Build
+
+### C++ library and tests
 
 Configure:
 
@@ -250,29 +284,55 @@ Build:
 cmake --build build
 ```
 
-Run tests:
+Run C++ tests:
 
 ```bash
 ctest --test-dir build --output-on-failure
 ```
 
-## CMake Options
+### Go implementation
 
-Planned options:
+The Go implementation lives in `golang/` and is a self-contained Go module
+(`dlms-hdlc`). It can be built and tested independently of CMake:
 
-```text
-DLMS_BUILD_TESTS       Build GoogleTest tests
-DLMS_BUILD_C_API       Build stable C ABI wrapper
-DLMS_USE_SYSTEM_GTEST  Use system-installed GoogleTest
+```bash
+cd golang
+go test ./hdlc/...
 ```
 
-Example:
+To build the Go shared library via CMake (requires Go 1.21+ in `PATH`):
+
+```bash
+cmake -S . -B build -DDLMS_BUILD_GO=ON
+cmake --build build
+```
+
+This produces `libgodlms_hdlc.so` (Linux), `libgodlms_hdlc.dylib` (macOS), or
+`godlms_hdlc.dll` (Windows) in the build directory. Go tests are also
+registered with CTest:
+
+```bash
+ctest --test-dir build --output-on-failure -L go
+```
+
+### All targets
 
 ```bash
 cmake -S . -B build \
   -DDLMS_BUILD_TESTS=ON \
   -DDLMS_BUILD_C_API=ON \
-  -DDLMS_USE_SYSTEM_GTEST=OFF
+  -DDLMS_BUILD_GO=ON
+cmake --build build
+ctest --test-dir build --output-on-failure
+```
+
+## CMake Options
+
+```text
+DLMS_BUILD_TESTS       Build GoogleTest tests                 (default: ON)
+DLMS_BUILD_C_API       Build stable C ABI wrapper             (default: ON)
+DLMS_USE_SYSTEM_GTEST  Use system-installed GoogleTest        (default: OFF)
+DLMS_BUILD_GO          Build Go implementation (godlms_hdlc)  (default: OFF)
 ```
 
 ## Error Handling
