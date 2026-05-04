@@ -1404,21 +1404,151 @@ negotiation implementation
 
 ---
 
-## 29. Следующий практический шаг
+## 29. Следующий практический шаг (v1 — выполнено)
 
-Начинать реализацию следует с документов и каркаса проекта:
+Фазы 0–12 реализованы. Библиотека соответствует требованиям v1. Следующий
+этап — реализация v2 session layer. См. раздел 30.
+
+---
+
+## 30. v2 Session Layer — план реализации
+
+Источники требований: IEC 62056-46, Green Book Ed. 8.3, DLMS UA 1001-3
+(Yellow Book). Детальные спецификации — в `docs/04_hdlc_session_requirements.md`
+разделы 7–12.
+
+---
+
+### Фаза 13. SNRM/UA parameter negotiation
+
+**Цель:** сессия корректно разбирает Information field SNRM/UA и применяет
+согласованные параметры.
+
+Критерий готовности:
 
 ```text
-1. docs/00_hdlc_requirements.md
-2. docs/01_hdlc_codec_api.md
-3. docs/02_hdlc_c_api.md
-4. docs/03_hdlc_segmentation.md
-5. docs/04_hdlc_session_requirements.md
-6. CMake skeleton
-7. empty library target
-8. GoogleTest skeleton
-9. HdlcStatus
-10. CRC module
+HdlcSnrmParameters — структура, описывающая параметры из info field
+ParseSnrmParameters(data, size) — парсер TLV-структуры 81/80/...
+EncodeSnrmParameters(params, output) — кодировщик для UA ответа
+BuildConnectRequest — может включать info field с предложенными параметрами
+BuildConnectResponse — включает согласованные параметры в UA
+ReceiveFrame — парсит info field SNRM на стороне сервера и выбирает min()
+Codec limits обновляются после обмена SNRM/UA
+Тесты: Session_SnrmWithMaxInfoFieldLength_ServerNegotiates
+       Session_SnrmWithWindowSize_ServerNegotiates
+       Session_UaCarriesNegotiatedValues
+       Session_CodecLimitsUpdatedAfterNegotiation
+       Session_SnrmWithUnrecognisedParameter_ServerRejectsDm
+Реальные векторы из Green Book §8.4.5.3.2 добавлены в test_hdlc_real_vectors
+Conformance tests HDLC_NDM2NRM_P1 и HDLC_NDM2NRM_P2 проходят
 ```
 
-Только после этого переходить к address/control/frame codec.
+---
+
+### Фаза 14. Window size > 1 (sliding window)
+
+**Цель:** сессия поддерживает window size 1–7 согласно согласованному значению.
+
+Критерий готовности:
+
+```text
+V(A) — acknowledge state variable добавлен в HdlcSession
+CanSendInformationFrame() — проверяет V(S) - V(A) < window_size
+AcknowledgeSequence() — возвращает V(A)
+BuildInformationFrame — блокируется когда окно заполнено
+ReceiveSupervisoryFrame (RR) — обновляет V(A) до N(R)
+ReceiveInformationFrame — обновляет V(A) через piggyback N(R)
+Тесты: Session_WindowSize1_CannotSendSecondFrameBeforeRr
+       Session_WindowSize3_CanSendThreeFramesBeforeRr
+       Session_RrAdvancesAcknowledgeSequence
+       Session_WindowExhaustedBlocksSend
+```
+
+---
+
+### Фаза 15. User_Information в SNRM и DISC
+
+**Цель:** верхний уровень (COSEM-OPEN/RELEASE) может передавать opaque payload
+через Information field SNRM/DISC.
+
+Критерий готовности:
+
+```text
+BuildConnectRequest(userInfo, size, output) — перегрузка с user_information
+BuildDisconnectRequest(userInfo, size, output) — перегрузка с user_information
+ReceiveFrame — возвращает user_information из SNRM/DISC caller-у
+Тесты: Session_SnrmWithUserInformation_ServerReceivesPayload
+       Session_DiscWithUserInformation_PeerReceivesPayload
+v1 перегрузки без userInfo остаются рабочими
+```
+
+---
+
+### Фаза 16. Обновление тестовых векторов
+
+**Цель:** покрыть реальными байтами все новые сценарии сессии.
+
+Критерий готовности:
+
+```text
+Добавить в test_hdlc_real_vectors.cpp:
+  - SNRM с info field (negotiation params из Green Book §8.4.5.3.2)
+  - UA с negotiated params
+  - I-frame с N(S)=0, N(R)=0 в 3-frame window sequence
+Все существующие векторы продолжают проходить
+```
+
+---
+
+### Фаза 17. Conformance test gap check
+
+**Цель:** проверить, что все тест-группы Yellow Book для HDLC layer проходят.
+
+Критерий готовности:
+
+```text
+HDLC_FRAME_P     — проходит (v1)
+HDLC_ADDRESS_P1  — проходит (v1)
+HDLC_ADDRESS_N1  — проходит (v1)
+HDLC_ADDRESS_N4  — проходит (v1)
+HDLC_ADDRESS_N6  — проходит (v1)
+HDLC_ADDRESS_N7  — проходит (v1)
+HDLC_NDM2NRM_P1  — проходит (фаза 13)
+HDLC_NDM2NRM_P2  — проходит (фаза 13+14)
+HDLC_INFO_P1     — проходит (v1)
+HDLC_INFO_N1     — проходит (v1)
+HDLC_INFO_N2     — проходит (v1)
+HDLC_INFO_N3     — проходит (v1)
+```
+
+---
+
+## 31. Не входит в v2
+
+```text
+timeouts (принадлежат транспортному адаптеру или приложению)
+retransmission scheduling
+полное duplicate frame detection
+LLC codec
+WRAPPER codec
+APDU codec
+security/ciphering
+```
+
+---
+
+## 32. Milestone v2
+
+```text
+M2: DLMS/COSEM HDLC Session Layer — conformance-ready
+```
+
+Состав:
+
+```text
+SNRM/UA parameter negotiation (max_info, window_size)
+Sliding window (window_size 1–7)
+User_Information passthrough в SNRM/DISC
+Обновлённые тестовые векторы с negotiation examples
+Все HDLC conformance test groups из Yellow Book покрыты
+```
