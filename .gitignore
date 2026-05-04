@@ -2,3 +2,4 @@ build/
 build-mingw64/
 
 *.log
+.cache/
