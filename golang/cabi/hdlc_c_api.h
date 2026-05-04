@@ -16,26 +16,47 @@ extern "C" {
  */
 typedef enum dlms_hdlc_status_t
 {
+  /// Operation completed successfully.
   DLMS_HDLC_STATUS_OK = 0,
+  /// More input bytes are required before a complete frame is available.
   DLMS_HDLC_STATUS_NEED_MORE_DATA = 1,
+  /// Caller-provided output or information buffer is too small.
   DLMS_HDLC_STATUS_OUTPUT_BUFFER_TOO_SMALL = 2,
+  /// A pointer, size, option, or argument combination is invalid.
   DLMS_HDLC_STATUS_INVALID_ARGUMENT = 3,
+  /// Opening or closing HDLC flag is missing or invalid.
   DLMS_HDLC_STATUS_INVALID_FLAG = 4,
+  /// Frame Format field does not contain supported HDLC Type 3 format.
   DLMS_HDLC_STATUS_INVALID_FRAME_FORMAT = 5,
+  /// Control field encodes a syntactically unsupported frame type.
   DLMS_HDLC_STATUS_INVALID_FRAME_TYPE = 6,
+  /// Frame Format length is inconsistent, too small, or otherwise invalid.
   DLMS_HDLC_STATUS_INVALID_FRAME_LENGTH = 7,
+  /// Destination or source HDLC address field is malformed.
   DLMS_HDLC_STATUS_INVALID_ADDRESS = 8,
+  /// Control field is malformed or unsupported by the codec.
   DLMS_HDLC_STATUS_INVALID_CONTROL_FIELD = 9,
+  /// Header Check Sequence verification failed.
   DLMS_HDLC_STATUS_INVALID_HEADER_CHECKSUM = 10,
+  /// Frame Check Sequence verification failed.
   DLMS_HDLC_STATUS_INVALID_FRAME_CHECKSUM = 11,
+  /// Frame exceeds configured or format-derived maximum frame size.
   DLMS_HDLC_STATUS_FRAME_TOO_LARGE = 12,
+  /// Information field exceeds configured per-frame information limit.
   DLMS_HDLC_STATUS_INFORMATION_FIELD_TOO_LARGE = 13,
+  /// Segmented-frame sequence is inconsistent or cannot be continued.
   DLMS_HDLC_STATUS_SEGMENTATION_ERROR = 14,
+  /// Segmented sequence is valid so far but more frames are required.
   DLMS_HDLC_STATUS_SEGMENTATION_INCOMPLETE = 15,
+  /// Reassembled information would exceed configured reassembly limit.
   DLMS_HDLC_STATUS_SEGMENTATION_OVERFLOW = 16,
+  /// Frame is valid HDLC but outside the supported codec feature set.
   DLMS_HDLC_STATUS_UNSUPPORTED_FRAME = 17,
+  /// Address is valid HDLC but outside the supported address model.
   DLMS_HDLC_STATUS_UNSUPPORTED_ADDRESS = 18,
+  /// Requested feature is intentionally outside this codec layer.
   DLMS_HDLC_STATUS_UNSUPPORTED_FEATURE = 19,
+  /// Unexpected internal failure, including allocation failure in wrappers.
   DLMS_HDLC_STATUS_INTERNAL_ERROR = 20
 } dlms_hdlc_status_t;
 

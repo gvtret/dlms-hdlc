@@ -109,10 +109,16 @@ typedef struct dlms_hdlc_frame_t
 
 /**
  * @brief Opaque C ABI handle for the incremental stream decoder.
+ *
+ * The internal layout is implementation-defined. Always use the lifecycle
+ * functions below to create, use, and destroy this object.
  */
 typedef struct dlms_hdlc_stream_decoder_t dlms_hdlc_stream_decoder_t;
 /**
  * @brief Opaque C ABI handle for segmented-frame reassembly.
+ *
+ * The internal layout is implementation-defined. Always use the lifecycle
+ * functions below to create, use, and destroy this object.
  */
 typedef struct dlms_hdlc_reassembler_t dlms_hdlc_reassembler_t;
 
@@ -188,12 +194,41 @@ void dlms_hdlc_stream_decoder_destroy(
 /**
  * @brief Reset a stream decoder handle to its initial empty state.
  *
+ * Discards all buffered input and any decoded frames waiting to be drained.
  * Passing null is allowed and has no effect.
  *
  * @param decoder Handle returned by `dlms_hdlc_stream_decoder_create`.
  */
 void dlms_hdlc_stream_decoder_reset(
   dlms_hdlc_stream_decoder_t* decoder);
+
+/**
+ * @brief Push bytes into the stream decoder and receive one decoded frame.
+ *
+ * Feed new data with `data` and `data_size`; pass `data_size == 0` to drain
+ * previously decoded frames without providing more input. Returns
+ * `DLMS_HDLC_STATUS_NEED_MORE_DATA` when no complete frame is available yet.
+ * Returns `DLMS_HDLC_STATUS_OUTPUT_BUFFER_TOO_SMALL` when the decoded
+ * Information field does not fit in `information_buffer`.
+ * On error the decoder is reset.
+ *
+ * @param decoder Handle returned by `dlms_hdlc_stream_decoder_create`; must not be null.
+ * @param data Incoming byte chunk; may be null only when `data_size == 0`.
+ * @param data_size Number of bytes at `data`.
+ * @param frame Receives one decoded frame; must not be null.
+ * @param information_buffer Caller-provided storage for the Information field.
+ * @param information_buffer_size Size of `information_buffer` in bytes.
+ * @param information_size Receives the decoded Information byte count; must not be null.
+ * @return Stable C ABI status code.
+ */
+dlms_hdlc_status_t dlms_hdlc_stream_decoder_push(
+  dlms_hdlc_stream_decoder_t* decoder,
+  const uint8_t* data,
+  size_t data_size,
+  dlms_hdlc_frame_t* frame,
+  uint8_t* information_buffer,
+  size_t information_buffer_size,
+  size_t* information_size);
 
 /**
  * @brief Create an opaque segmented-frame reassembler handle.
@@ -227,6 +262,34 @@ void dlms_hdlc_reassembler_destroy(
  */
 void dlms_hdlc_reassembler_reset(
   dlms_hdlc_reassembler_t* reassembler);
+
+/**
+ * @brief Push one decoded frame into the reassembler.
+ *
+ * A non-segmented frame with no pending sequence completes immediately.
+ * A segmented frame starts or continues a sequence and returns
+ * `DLMS_HDLC_STATUS_SEGMENTATION_INCOMPLETE` until the final non-segmented
+ * frame arrives.
+ * When `*has_completed_frame` is set to 1 on return, `output_frame` and
+ * `output_information_buffer` hold the completed reassembled frame.
+ *
+ * @param reassembler Handle returned by `dlms_hdlc_reassembler_create`; must not be null.
+ * @param input_frame Decoded segmented frame to push; must not be null.
+ * @param output_frame Receives the completed frame when reassembly finishes; must not be null.
+ * @param output_information_buffer Caller-provided storage for the reassembled Information field.
+ * @param output_information_buffer_size Size of `output_information_buffer` in bytes.
+ * @param output_information_size Receives the reassembled Information byte count; must not be null.
+ * @param has_completed_frame Set to 1 when a completed frame is available; must not be null.
+ * @return `DLMS_HDLC_STATUS_OK`, `DLMS_HDLC_STATUS_SEGMENTATION_INCOMPLETE`, or an error status.
+ */
+dlms_hdlc_status_t dlms_hdlc_reassembler_push_frame(
+  dlms_hdlc_reassembler_t* reassembler,
+  const dlms_hdlc_frame_t* input_frame,
+  dlms_hdlc_frame_t* output_frame,
+  uint8_t* output_information_buffer,
+  size_t output_information_buffer_size,
+  size_t* output_information_size,
+  int* has_completed_frame);
 
 #ifdef __cplusplus
 }

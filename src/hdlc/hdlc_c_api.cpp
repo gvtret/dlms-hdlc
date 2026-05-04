@@ -4,7 +4,9 @@
 #include "dlms/hdlc/hdlc_segmentation.hpp"
 #include "dlms/hdlc/hdlc_stream_decoder.hpp"
 
+#include <algorithm>
 #include <new>
+#include <vector>
 
 struct dlms_hdlc_stream_decoder_t
 {
@@ -15,6 +17,7 @@ struct dlms_hdlc_stream_decoder_t
   }
 
   dlms::hdlc::HdlcStreamDecoder decoder;
+  std::vector<dlms::hdlc::HdlcFrameBuffer> pending;
 };
 
 struct dlms_hdlc_reassembler_t
@@ -225,6 +228,71 @@ void dlms_hdlc_stream_decoder_reset(
 {
   if (decoder != 0) {
     decoder->decoder.Reset();
+    decoder->pending.clear();
+  }
+}
+
+dlms_hdlc_status_t dlms_hdlc_stream_decoder_push(
+  dlms_hdlc_stream_decoder_t* decoder,
+  const uint8_t* data,
+  size_t data_size,
+  dlms_hdlc_frame_t* frame,
+  uint8_t* information_buffer,
+  size_t information_buffer_size,
+  size_t* information_size)
+{
+  if (information_size != 0) {
+    *information_size = 0u;
+  }
+
+  if (decoder == 0 || frame == 0 || information_size == 0) {
+    return DLMS_HDLC_STATUS_INVALID_ARGUMENT;
+  }
+  if (data == 0 && data_size != 0u) {
+    return DLMS_HDLC_STATUS_INVALID_ARGUMENT;
+  }
+
+  try {
+    if (data_size > 0u) {
+      std::vector<dlms::hdlc::HdlcFrameBuffer> decoded;
+      dlms::hdlc::HdlcStatus status = decoder->decoder.Push(data, data_size, decoded);
+      if (status != dlms::hdlc::HdlcStatus::Ok &&
+          status != dlms::hdlc::HdlcStatus::NeedMoreData) {
+        return ToCStatus(status);
+      }
+      decoder->pending.insert(decoder->pending.end(),
+                              std::make_move_iterator(decoded.begin()),
+                              std::make_move_iterator(decoded.end()));
+    }
+
+    if (decoder->pending.empty()) {
+      return DLMS_HDLC_STATUS_NEED_MORE_DATA;
+    }
+
+    const dlms::hdlc::HdlcFrameBuffer& f = decoder->pending.front();
+    std::size_t infoSize = f.information.size();
+
+    if (infoSize > information_buffer_size) {
+      return DLMS_HDLC_STATUS_OUTPUT_BUFFER_TOO_SMALL;
+    }
+    if (infoSize > 0u && information_buffer != 0) {
+      std::copy(f.information.begin(), f.information.end(), information_buffer);
+    }
+    *information_size = infoSize;
+
+    dlms::hdlc::HdlcFrame view;
+    view.segmented = f.segmented;
+    view.destination = f.destination;
+    view.source = f.source;
+    view.control = f.control;
+    view.informationData = infoSize > 0u ? information_buffer : 0;
+    view.informationSize = infoSize;
+    dlms::hdlc::HdlcStatus status = FromCppFrame(view, infoSize, *frame, information_buffer);
+
+    decoder->pending.erase(decoder->pending.begin());
+    return ToCStatus(status);
+  } catch (...) {
+    return DLMS_HDLC_STATUS_INTERNAL_ERROR;
   }
 }
 
@@ -257,6 +325,80 @@ void dlms_hdlc_reassembler_reset(
 {
   if (reassembler != 0) {
     reassembler->reassembler.Reset();
+  }
+}
+
+dlms_hdlc_status_t dlms_hdlc_reassembler_push_frame(
+  dlms_hdlc_reassembler_t* reassembler,
+  const dlms_hdlc_frame_t* input_frame,
+  dlms_hdlc_frame_t* output_frame,
+  uint8_t* output_information_buffer,
+  size_t output_information_buffer_size,
+  size_t* output_information_size,
+  int* has_completed_frame)
+{
+  if (output_information_size != 0) {
+    *output_information_size = 0u;
+  }
+  if (has_completed_frame != 0) {
+    *has_completed_frame = 0;
+  }
+
+  if (reassembler == 0 || input_frame == 0 || output_frame == 0 ||
+      output_information_size == 0 || has_completed_frame == 0) {
+    return DLMS_HDLC_STATUS_INVALID_ARGUMENT;
+  }
+
+  try {
+    dlms::hdlc::HdlcFrame view;
+    dlms::hdlc::HdlcStatus status = ToCppFrame(*input_frame, view);
+    if (status != dlms::hdlc::HdlcStatus::Ok) {
+      return ToCStatus(status);
+    }
+
+    dlms::hdlc::HdlcFrameBuffer inBuf;
+    inBuf.segmented = view.segmented;
+    inBuf.destination = view.destination;
+    inBuf.source = view.source;
+    inBuf.control = view.control;
+    if (view.informationSize > 0u && view.informationData != 0) {
+      inBuf.information.assign(view.informationData,
+                               view.informationData + view.informationSize);
+    }
+
+    dlms::hdlc::HdlcFrameBuffer completed;
+    bool hasCompleted = false;
+    status = reassembler->reassembler.PushFrame(inBuf, completed, hasCompleted);
+    if (status != dlms::hdlc::HdlcStatus::Ok &&
+        status != dlms::hdlc::HdlcStatus::SegmentationIncomplete) {
+      return ToCStatus(status);
+    }
+    if (!hasCompleted) {
+      return DLMS_HDLC_STATUS_SEGMENTATION_INCOMPLETE;
+    }
+
+    std::size_t infoSize = completed.information.size();
+    if (infoSize > output_information_buffer_size) {
+      return DLMS_HDLC_STATUS_OUTPUT_BUFFER_TOO_SMALL;
+    }
+    if (infoSize > 0u && output_information_buffer != 0) {
+      std::copy(completed.information.begin(), completed.information.end(),
+                output_information_buffer);
+    }
+    *output_information_size = infoSize;
+    *has_completed_frame = 1;
+
+    dlms::hdlc::HdlcFrame outView;
+    outView.segmented = completed.segmented;
+    outView.destination = completed.destination;
+    outView.source = completed.source;
+    outView.control = completed.control;
+    outView.informationData = infoSize > 0u ? output_information_buffer : 0;
+    outView.informationSize = infoSize;
+    return ToCStatus(FromCppFrame(outView, infoSize, *output_frame,
+                                  output_information_buffer));
+  } catch (...) {
+    return DLMS_HDLC_STATUS_INTERNAL_ERROR;
   }
 }
 

@@ -29,3 +29,20 @@ func calculateHdlcCRC(data []byte) uint16 {
 	}
 	return crc ^ 0xffff
 }
+
+// CalculateHdlcCRC computes the DLMS/COSEM HDLC 16-bit CRC value over data.
+// Uses the reflected HDLC FCS-16 algorithm: polynomial 0x8408, initial value
+// 0xFFFF, final XOR 0xFFFF. The returned value is stored in HDLC frames low
+// byte first (little-endian).
+func CalculateHdlcCRC(data []byte) uint16 {
+	return calculateHdlcCRC(data)
+}
+
+// ValidateHdlcCRC validates data against an expected HDLC CRC value.
+// Returns nil when the CRC matches, StatusInvalidFrameChecksum otherwise.
+func ValidateHdlcCRC(data []byte, expected uint16) error {
+	if calculateHdlcCRC(data) != expected {
+		return StatusInvalidFrameChecksum
+	}
+	return nil
+}
