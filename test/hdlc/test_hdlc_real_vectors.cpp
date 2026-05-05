@@ -1,4 +1,5 @@
 #include "dlms/hdlc/hdlc_codec.hpp"
+#include "dlms/hdlc/hdlc_session.hpp"
 
 #include <algorithm>
 #include <cstddef>
@@ -11,10 +12,15 @@ namespace {
 
 using dlms::hdlc::DecodeFrame;
 using dlms::hdlc::DefaultHdlcCodecLimits;
+using dlms::hdlc::DlmsHdlcAddress;
 using dlms::hdlc::EncodeFrame;
 using dlms::hdlc::HdlcFrame;
 using dlms::hdlc::HdlcFrameBuffer;
 using dlms::hdlc::HdlcFrameKind;
+using dlms::hdlc::HdlcSession;
+using dlms::hdlc::HdlcSessionOptions;
+using dlms::hdlc::HdlcSessionRole;
+using dlms::hdlc::HdlcSessionState;
 using dlms::hdlc::HdlcStatus;
 
 struct HdlcRealVector
@@ -249,5 +255,61 @@ INSTANTIATE_TEST_SUITE_P(
       0x64u,
       16u
     }));
+
+// -----------------------------------------------------------------------
+// Phase 16: session-level negotiation test using real DLMS/COSEM vectors.
+//
+// kHistoricalSnrmRequest (no info field, client→server, client=0x64 server=0x91)
+// kHistoricalUaResponse  (server→client, max_info=126 encoded as 1-byte value)
+//
+// Verifies that:
+//   1. A client session correctly receives a UA with 1-byte TLV values.
+//   2. The negotiated max_info_field_length is set to 126.
+// -----------------------------------------------------------------------
+
+HdlcSessionOptions MakeHistoricalOptions(HdlcSessionRole role)
+{
+  HdlcSessionOptions opts;
+  opts.role = role;
+  EXPECT_EQ(HdlcStatus::Ok,
+            DlmsHdlcAddress::MakeClientAddress(0x64u, opts.clientAddress));
+  EXPECT_EQ(HdlcStatus::Ok,
+            DlmsHdlcAddress::MakeServerAddress(0x01u, 0x11u, opts.serverAddress));
+  opts.limits = DefaultHdlcCodecLimits();
+  return opts;
+}
+
+TEST(HdlcRealVectorSession, ClientParsesUaWithOneByteTlvNegotiationParams)
+{
+  HdlcSession client(MakeHistoricalOptions(HdlcSessionRole::Client));
+  HdlcSession server(MakeHistoricalOptions(HdlcSessionRole::Server));
+
+  // Step 1: client builds SNRM (no params – default limits).
+  std::vector<std::uint8_t> bytes;
+  ASSERT_EQ(HdlcStatus::Ok, client.BuildConnectRequest(bytes));
+
+  // Step 2: server receives the SNRM.
+  HdlcFrameBuffer snrm;
+  ASSERT_EQ(HdlcStatus::Ok,
+            DecodeFrame(bytes.data(), bytes.size(), DefaultHdlcCodecLimits(), snrm));
+  ASSERT_EQ(HdlcStatus::Ok, server.ReceiveFrame(snrm));
+
+  // Step 3: client receives the *real* historical UA carrying 1-byte max_info=126.
+  HdlcFrameBuffer realUa;
+  ASSERT_EQ(HdlcStatus::Ok,
+            DecodeFrame(kHistoricalUaResponse, sizeof(kHistoricalUaResponse),
+                        DefaultHdlcCodecLimits(), realUa));
+  ASSERT_EQ(HdlcStatus::Ok, client.ReceiveFrame(realUa));
+
+  EXPECT_EQ(HdlcSessionState::Connected, client.State());
+
+  // The UA info field encodes max_info_tx = max_info_rx = 0x7e = 126.
+  EXPECT_EQ(126u,
+            client.NegotiatedLimits().maxInformationFieldLengthTransmit);
+  EXPECT_EQ(126u,
+            client.NegotiatedLimits().maxInformationFieldLengthReceive);
+  EXPECT_EQ(1u, client.NegotiatedLimits().windowSizeTransmit);
+  EXPECT_EQ(1u, client.NegotiatedLimits().windowSizeReceive);
+}
 
 } // namespace
