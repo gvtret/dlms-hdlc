@@ -544,7 +544,7 @@ docs/05_hdlc_test_plan.md
 
 ### Phase 1
 
-Project skeleton:
+Initial project structure:
 
 - CMake root project
 - include tree

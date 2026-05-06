@@ -21,8 +21,7 @@ add_executable(dlms_hdlc_tests
   hdlc/test_hdlc_real_vectors.cpp
   hdlc/test_hdlc_segmentation.cpp
   hdlc/test_hdlc_session.cpp
-  hdlc/test_hdlc_stream_decoder.cpp
-  hdlc/test_hdlc_skeleton.cpp)
+  hdlc/test_hdlc_stream_decoder.cpp)
 
 target_link_libraries(dlms_hdlc_tests
   PRIVATE
